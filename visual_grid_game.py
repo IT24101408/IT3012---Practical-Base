@@ -2,13 +2,13 @@
 import random
 import tkinter as tk
 #from agent import SimpleReflexAgent
-from agent import ModelBasedAgent
+from agent import SearchAgent
 
 
 class VisualGridHuntGame:
     """A flexible Pacman-style grid environment with support for configurable opponents and larger scales."""
 
-    def __init__(self, width=10, height=10, num_food=10, num_opponents=2, custom_walls=None):
+    def __init__(self, width=10, height=10, num_food=15, num_opponents=2, custom_walls=None):
         self.width = width
         self.height = height
         self.agent_pos = [0, 0]  # Starting position (x, y)
@@ -73,11 +73,14 @@ class VisualGridHuntGame:
         next_cell = (min(self.width - 1, x + 1), y)
 
       return {
-        "agent_pos": list(self.agent_pos),
-        "food_here": tuple(self.agent_pos) in self.food_positions,
-        "wall_ahead": next_cell in self.walls,
-        "smells_toxin": tuple(self.agent_pos) in self.toxic_traps,
-        "collision": self.collision
+    "agent_pos": list(self.agent_pos),
+    "food_here": tuple(self.agent_pos) in self.food_positions,
+    "wall_ahead": next_cell in self.walls,
+    "smells_toxin": tuple(self.agent_pos) in self.toxic_traps,
+    "collision": self.collision,
+    "grid_size": (self.width, self.height),
+    "walls": list(self.walls),
+    "all_food": list(self.food_positions)
     }
 
     def execute_action(self, action: str):
@@ -141,7 +144,7 @@ class GridGameGUI:
 
         self.env = VisualGridHuntGame(width=width, height=height, num_food=num_food, num_opponents=num_opponents,
                                       custom_walls=walls)
-        self.agent = ModelBasedAgent()
+        self.agent = SearchAgent()
         # Dynamically calculate cell size so the total canvas fits nicely within a 600x600 window ceiling
         max_canvas_dim = 600
         self.cell_size = max(20, min(max_canvas_dim // self.env.width, max_canvas_dim // self.env.height))

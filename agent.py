@@ -1,4 +1,6 @@
 import random
+from collections import deque
+import heapq
 
 
 class GreedyGridAgent:
@@ -107,3 +109,185 @@ class ModelBasedAgent:
         # If all visited, move differently
         self.last_action = "Right"
         return "Right"
+
+    
+class SearchAgent:
+    """Goal-Based/Planning Agent using BFS, DFS, and UCS."""
+
+    def __init__(self):
+        self.plan = []
+        self.active_algo = 'BFS'
+
+    def get_successors(self, state, percept):
+        """Generate valid neighbouring states and their actions."""
+
+        x, y = state
+        width, height = percept["grid_size"]
+        walls = set(percept["walls"])
+
+        moves = [
+            ("Up", (x, y + 1)),
+            ("Right", (x + 1, y)),
+            ("Down", (x, y - 1)),
+            ("Left", (x - 1, y))
+        ]
+
+        successors = []
+
+        for action, new_position in moves:
+            nx, ny = new_position
+
+            if 0 <= nx < width and 0 <= ny < height:
+                if new_position not in walls:
+                    successors.append((new_position, action))
+
+        return successors
+
+    def find_closest_food(self, start_pos, food_positions):
+        """Find the closest food using Manhattan distance."""
+
+        if not food_positions:
+            return None
+
+        return min(
+            food_positions,
+            key=lambda food:
+                abs(start_pos[0] - food[0]) +
+                abs(start_pos[1] - food[1])
+        )
+
+    def bfs_search(self, start, goal, percept):
+        """Breadth-First Search."""
+
+        frontier = deque([(start, [])])
+        reached = {start}
+
+        while frontier:
+            current, path = frontier.popleft()
+
+            if current == goal:
+                return path
+
+            for next_position, action in self.get_successors(
+                current, percept
+            ):
+                if next_position not in reached:
+                    reached.add(next_position)
+                    frontier.append(
+                        (next_position, path + [action])
+                    )
+
+        return []
+
+    def dfs_search(self, start, goal, percept):
+        """Depth-First Search."""
+
+        frontier = [(start, [])]
+        reached = {start}
+
+        while frontier:
+            current, path = frontier.pop()
+
+            if current == goal:
+                return path
+
+            for next_position, action in self.get_successors(
+                current, percept
+            ):
+                if next_position not in reached:
+                    reached.add(next_position)
+                    frontier.append(
+                        (next_position, path + [action])
+                    )
+
+        return []
+
+    def ucs_search(self, start, goal, percept):
+        """Uniform-Cost Search."""
+
+        frontier = []
+        counter = 0
+
+        heapq.heappush(
+            frontier,
+            (0, counter, start, [])
+        )
+
+        reached = {start: 0}
+
+        while frontier:
+            cost, _, current, path = heapq.heappop(frontier)
+
+            if current == goal:
+                return path
+
+            if cost > reached.get(current, float('inf')):
+                continue
+
+            for next_position, action in self.get_successors(
+                current, percept
+            ):
+                new_cost = cost + 1
+
+                if (
+                    next_position not in reached
+                    or new_cost < reached[next_position]
+                ):
+                    reached[next_position] = new_cost
+                    counter += 1
+
+                    heapq.heappush(
+                        frontier,
+                        (
+                            new_cost,
+                            counter,
+                            next_position,
+                            path + [action]
+                        )
+                    )
+
+        return []
+
+    def sense_and_act(self, percept):
+        """Create and execute a plan toward the closest food."""
+
+        if percept["food_here"]:
+            self.plan = []
+            return "Suck"
+
+        if not self.plan:
+
+            start = tuple(percept["agent_pos"])
+
+            food_positions = [
+                tuple(food)
+                for food in percept["all_food"]
+            ]
+
+            goal = self.find_closest_food(
+                start,
+                food_positions
+            )
+
+            if goal is None:
+                return "Suck"
+
+            if self.active_algo == "BFS":
+                self.plan = self.bfs_search(
+                    start, goal, percept
+                )
+
+            elif self.active_algo == "DFS":
+                self.plan = self.dfs_search(
+                    start, goal, percept
+                )
+
+            elif self.active_algo == "UCS":
+                self.plan = self.ucs_search(
+                    start, goal, percept
+                )
+
+        if self.plan:
+            return self.plan.pop(0)
+
+        return "Suck"
