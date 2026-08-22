@@ -1,4 +1,5 @@
 import random
+import math
 from collections import deque
 import heapq
 
@@ -117,6 +118,17 @@ class SearchAgent:
     def __init__(self):
         self.plan = []
         self.active_algo = 'BFS'
+
+    def manhattan_distance(self, pos, goal):
+        """Calculate Manhattan distance between two positions."""
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal):
+        """Calculate Euclidean distance between two positions."""
+        return math.sqrt(
+            (pos[0] - goal[0]) ** 2 +
+            (pos[1] - goal[1]) ** 2
+        )
 
     def get_successors(self, state, percept):
         """Generate valid neighbouring states and their actions."""
@@ -247,7 +259,83 @@ class SearchAgent:
                     )
 
         return []
+    
+    def astar_search(self, start_pos, goal_pos, percept, heuristic_type="manhattan"):
+        """A* Search using f(n) = g(n) + h(n)."""
 
+        frontier = []
+        counter = 0
+
+        # Calculate initial heuristic
+        if heuristic_type == "manhattan":
+            h_cost = self.manhattan_distance(start_pos, goal_pos)
+        else:
+            h_cost = self.euclidean_distance(start_pos, goal_pos)
+
+        # (f_cost, g_cost, counter, position, path)
+        heapq.heappush(
+            frontier,
+            (
+                h_cost,
+                0,
+                counter,
+                start_pos,
+                []
+            )
+        )
+
+        reached = {start_pos: 0}
+
+        while frontier:
+
+            f_cost, g_cost, _, current, path = heapq.heappop(frontier)
+
+            if current == goal_pos:
+                return path
+
+            if g_cost > reached.get(current, float('inf')):
+                continue
+
+            for next_position, action in self.get_successors(
+                current, percept
+            ):
+
+                new_g_cost = g_cost + 1
+
+                if (
+                    next_position not in reached
+                    or new_g_cost < reached[next_position]
+                ):
+
+                    reached[next_position] = new_g_cost
+
+                    if heuristic_type == "manhattan":
+                        h_cost = self.manhattan_distance(
+                            next_position,
+                            goal_pos
+                        )
+                    else:
+                        h_cost = self.euclidean_distance(
+                            next_position,
+                            goal_pos
+                        )
+
+                    new_f_cost = new_g_cost + h_cost
+
+                    counter += 1
+
+                    heapq.heappush(
+                        frontier,
+                        (
+                            new_f_cost,
+                            new_g_cost,
+                            counter,
+                            next_position,
+                            path + [action]
+                        )
+                    )
+
+        return []
     def sense_and_act(self, percept):
         """Create and execute a plan toward the closest food."""
 
@@ -286,8 +374,18 @@ class SearchAgent:
                 self.plan = self.ucs_search(
                     start, goal, percept
                 )
+            elif self.active_algo == "AStar":
+                self.plan = self.astar_search(
+                    start, goal, percept
+    )
 
         if self.plan:
             return self.plan.pop(0)
 
         return "Suck"
+    
+if __name__ == "__main__":
+      agent = SearchAgent()
+
+      print("Manhattan Distance:", agent.manhattan_distance((0, 0), (3, 4)))
+      print("Euclidean Distance:", agent.euclidean_distance((0, 0), (3, 4)))
