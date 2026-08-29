@@ -2,6 +2,7 @@ import random
 import math
 from collections import deque
 import heapq
+from logic_engine import KnowledgeBase
 
 
 class GreedyGridAgent:
@@ -117,7 +118,23 @@ class SearchAgent:
 
     def __init__(self):
         self.plan = []
-        self.active_algo = 'BFS'
+        self.active_algo = 'AStar'
+        # Create Knowledge Base
+        self.kb = KnowledgeBase()
+
+        # Rule 1:
+        # TargetVisible AND HasDust -> SafeToEngage
+        self.kb.tell_rule(
+            ['TargetVisible', 'HasDust'],
+            'SafeToEngage'
+        )
+
+        # Rule 2:
+        # SafeToEngage AND BloodseekerMissing -> Retreat
+        self.kb.tell_rule(
+            ['SafeToEngage', 'BloodseekerMissing'],
+            'Retreat'
+        )
 
     def manhattan_distance(self, pos, goal):
         """Calculate Manhattan distance between two positions."""
@@ -259,18 +276,31 @@ class SearchAgent:
                     )
 
         return []
-    
-    def astar_search(self, start_pos, goal_pos, percept, heuristic_type="manhattan"):
+
+    def astar_search(
+        self,
+        start_pos,
+        goal_pos,
+        percept,
+        heuristic_type="manhattan"
+    ):
         """A* Search using f(n) = g(n) + h(n)."""
 
         frontier = []
         counter = 0
 
         # Calculate initial heuristic
+ 
         if heuristic_type == "manhattan":
-            h_cost = self.manhattan_distance(start_pos, goal_pos)
+            h_cost = self.manhattan_distance(
+                start_pos,
+                goal_pos
+            )
         else:
-            h_cost = self.euclidean_distance(start_pos, goal_pos)
+            h_cost = self.euclidean_distance(
+                start_pos,
+                goal_pos
+            )
 
         # (f_cost, g_cost, counter, position, path)
         heapq.heappush(
@@ -288,17 +318,46 @@ class SearchAgent:
 
         while frontier:
 
-            f_cost, g_cost, _, current, path = heapq.heappop(frontier)
+            f_cost, g_cost, _, current, path = heapq.heappop(
+                frontier
+            )
 
             if current == goal_pos:
                 return path
 
-            if g_cost > reached.get(current, float('inf')):
+            if g_cost > reached.get(
+                current,
+                float('inf')
+            ):
                 continue
 
             for next_position, action in self.get_successors(
-                current, percept
+                current,
+                percept
             ):
+
+                # Check Knowledge Base for this tile
+                self.kb.clear_facts()
+
+                # Add TargetVisible fact
+                if next_position in percept["all_food"]:
+                    self.kb.tell_fact("TargetVisible")
+
+                # Add HasDust fact
+                if next_position not in percept["walls"]:
+                    self.kb.tell_fact("HasDust")
+
+                # Add BloodseekerMissing fact if available
+                if percept.get("bloodseeker_missing", False):
+                    self.kb.tell_fact("BloodseekerMissing")
+
+                # Run Forward Chaining
+                self.kb.forward_chain()
+
+                # Skip tile if Retreat is deduced
+                if "Retreat" in self.kb.facts:
+                    continue
+
 
                 new_g_cost = g_cost + 1
 
@@ -309,6 +368,7 @@ class SearchAgent:
 
                     reached[next_position] = new_g_cost
 
+                    # Calculate heuristic
                     if heuristic_type == "manhattan":
                         h_cost = self.manhattan_distance(
                             next_position,
@@ -320,6 +380,7 @@ class SearchAgent:
                             goal_pos
                         )
 
+                    # f(n) = g(n) + h(n)
                     new_f_cost = new_g_cost + h_cost
 
                     counter += 1
@@ -336,6 +397,7 @@ class SearchAgent:
                     )
 
         return []
+
     def sense_and_act(self, percept):
         """Create and execute a plan toward the closest food."""
 
@@ -374,10 +436,11 @@ class SearchAgent:
                 self.plan = self.ucs_search(
                     start, goal, percept
                 )
+
             elif self.active_algo == "AStar":
                 self.plan = self.astar_search(
                     start, goal, percept
-    )
+                )
 
         if self.plan:
             return self.plan.pop(0)
